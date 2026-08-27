@@ -1,0 +1,7 @@
+{
+  "name": "Minecraft Server Portal & Status",
+  "description": "24/7 web portal for Minecraft server with live status, Java & Bedrock connection cards, offline wake-up guide, player showcase, and Discord bot integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
