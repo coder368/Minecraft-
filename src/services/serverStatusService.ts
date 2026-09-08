@@ -1,390 +1,132 @@
 import { ServerConfig, ServerStats, PlayerInfo } from '../types';
-import { SAMPLE_ONLINE_PLAYERS } from '../data/defaultConfig';
 
-interface McStatusIoJavaResponse {
-  online: boolean;
-  host?: string;
-  port?: number;
-  version?: {
-    name_clean?: string;
-    name_raw?: string;
-    protocol?: number;
-  };
-  players?: {
-    online: number;
-    max: number;
-    list?: Array<{
-      uuid?: string;
-      name_clean?: string;
-      name_raw?: string;
-    }>;
-  };
-  motd?: {
-    raw?: string;
-    clean?: string;
-    html?: string;
-  };
-  round_trip_latency?: number;
-}
-
-interface McStatusIoBedrockResponse {
-  online: boolean;
-  players?: {
-    online: number;
-    max: number;
-  };
-  motd?: {
-    clean?: string;
-    raw?: string;
-  };
-  version?: {
-    name?: string;
-  };
-}
-
-interface McSrvStatResponse {
+interface McSrvStatV3Response {
   online: boolean;
   ip?: string;
   port?: number;
+  hostname?: string;
+  version?: string;
+  software?: string;
+  protocol?: {
+    version?: number;
+    name?: string;
+  } | number;
   motd?: {
     raw?: string[];
     clean?: string[];
+    html?: string[];
   };
   players?: {
     online?: number;
     max?: number;
-    list?: Array<{ name: string; uuid?: string }>;
+    list?: Array<string | { name: string; uuid?: string }>;
+    uuid?: Record<string, string>;
   };
-  version?: string;
-  software?: string;
   debug?: {
     ping?: boolean;
     query?: boolean;
-    srv?: boolean;
-  };
-}
-
-interface MinetoolsResponse {
-  status?: string;
-  latency?: number;
-  players?: {
-    now?: number;
-    max?: number;
-    sample?: Array<{ name: string; id: string }>;
-  };
-  description?: string;
-  version?: {
-    name?: string;
   };
 }
 
 export class ServerStatusService {
-  private static simulatedState: 'online' | 'offline' | 'starting' = 'online';
-
-  public static setSimulatedState(state: 'online' | 'offline' | 'starting') {
-    this.simulatedState = state;
-  }
-
-  public static getSimulatedState(): 'online' | 'offline' | 'starting' {
-    return this.simulatedState;
-  }
-
   public static async fetchStatus(config: ServerConfig): Promise<ServerStats> {
     const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-    // If simulation mode is explicitly enabled, return mock data
-    if (config.enableSimulation) {
-      return this.getSimulatedResponse(config, now);
+    // Target address (default Java address with port: my-mc.link:40891)
+    let address = config.javaIp ? config.javaIp.trim() : 'my-mc.link';
+    if (!address.includes(':') && config.javaPort && config.javaPort !== 25565) {
+      address = `${address}:${config.javaPort}`;
+    } else if (!address.includes(':') && config.javaPort === 40891) {
+      address = `${address}:40891`;
     }
-
-    // Form exact addresses
-    const javaPort = config.javaPort && config.javaPort !== 25565 ? config.javaPort : 25565;
-    const javaAddress = javaPort !== 25565 ? `${config.javaIp}:${javaPort}` : config.javaIp;
-    const bedrockPort = config.bedrockPort || 19132;
-    const bedrockAddress = `${config.bedrockIp}:${bedrockPort}`;
-
-    // Query multiple public Minecraft Ping APIs in parallel for highest accuracy and zero caching delay
-    const timestamp = Date.now();
-    const fetchPromises: Promise<any>[] = [
-      // 1. mcstatus.io Java query (supports SLP + Query protocol for accurate player names & counts)
-      fetch(`https://api.mcstatus.io/v2/status/java/${encodeURIComponent(javaAddress)}?query=true&t=${timestamp}`, {
-        headers: { Accept: 'application/json' }
-      })
-        .then(r => r.ok ? r.json() as Promise<McStatusIoJavaResponse> : null)
-        .catch(() => null),
-
-      // 2. mcsrvstat.us Java query
-      fetch(`https://api.mcsrvstat.us/3/${encodeURIComponent(javaAddress)}?t=${timestamp}`, {
-        headers: { Accept: 'application/json' }
-      })
-        .then(r => r.ok ? r.json() as Promise<McSrvStatResponse> : null)
-        .catch(() => null),
-
-      // 3. mcstatus.io Bedrock query (for Geyser / Floodgate Bedrock players)
-      fetch(`https://api.mcstatus.io/v2/status/bedrock/${encodeURIComponent(bedrockAddress)}?t=${timestamp}`, {
-        headers: { Accept: 'application/json' }
-      })
-        .then(r => r.ok ? r.json() as Promise<McStatusIoBedrockResponse> : null)
-        .catch(() => null),
-
-      // 4. Minetools fallback query
-      fetch(`https://api.minetools.eu/ping/${encodeURIComponent(config.javaIp)}/${javaPort}`)
-        .then(r => r.ok ? r.json() as Promise<MinetoolsResponse> : null)
-        .catch(() => null),
-
-      // 5. mcsrvstat.us Bedrock query
-      fetch(`https://api.mcsrvstat.us/bedrock/3/${encodeURIComponent(bedrockAddress)}?t=${timestamp}`)
-        .then(r => r.ok ? r.json() as Promise<McSrvStatResponse> : null)
-        .catch(() => null),
-    ];
 
     try {
-      const [mcStatusJava, mcSrvJava, mcStatusBedrock, minetoolsJava, mcSrvBedrock] = await Promise.all(fetchPromises);
+      // Primary real endpoint: api.mcsrvstat.us/3/
+      const res = await fetch(`https://api.mcsrvstat.us/3/${encodeURIComponent(address)}?t=${Date.now()}`, {
+        headers: { Accept: 'application/json' },
+      });
 
-      // Evaluate online status across all providers
-      const isJavaOnline = Boolean(
-        (mcStatusJava && mcStatusJava.online) ||
-        (mcSrvJava && mcSrvJava.online) ||
-        (minetoolsJava && minetoolsJava.status === 'OK' && minetoolsJava.players)
-      );
+      if (!res.ok) {
+        throw new Error(`HTTP error ${res.status}`);
+      }
 
-      const isBedrockOnline = Boolean(
-        (mcStatusBedrock && mcStatusBedrock.online) ||
-        (mcSrvBedrock && mcSrvBedrock.online)
-      );
+      const data: McSrvStatV3Response = await res.json();
 
-      const isOnline = isJavaOnline || isBedrockOnline;
+      const isOnline = Boolean(data.online);
+      const playersOnline = data.players?.online ?? 0;
+      const maxPlayers = data.players?.max ?? 20;
+      const version = data.version || (typeof data.protocol === 'object' ? data.protocol?.name : undefined) || config.mcVersion || '1.21.11';
 
-      if (isOnline) {
-        // Compute the most accurate player count by taking the maximum reported across live sources
-        const javaPlayersOnline = Math.max(
-          mcStatusJava?.players?.online ?? 0,
-          mcSrvJava?.players?.online ?? 0,
-          minetoolsJava?.players?.now ?? 0
-        );
+      // Parse MOTD
+      let motdClean = 'A Minecraft Server';
+      if (data.motd?.clean && Array.isArray(data.motd.clean) && data.motd.clean.length > 0) {
+        motdClean = data.motd.clean.join(' ').trim();
+      }
 
-        const bedrockPlayersOnline = Math.max(
-          mcStatusBedrock?.players?.online ?? 0,
-          mcSrvBedrock?.players?.online ?? 0
-        );
+      // Parse real player roster if returned
+      const playersList: PlayerInfo[] = [];
+      if (data.players?.list && Array.isArray(data.players.list)) {
+        data.players.list.forEach((item) => {
+          const name = typeof item === 'string' ? item : item?.name;
+          if (name && typeof name === 'string' && name.trim()) {
+            const cleanName = name.trim();
+            const uuid = (typeof item === 'object' && item?.uuid)
+              ? item.uuid
+              : (data.players?.uuid && data.players.uuid[cleanName])
+              ? data.players.uuid[cleanName]
+              : cleanName;
 
-        // Combined online players
-        const playersOnline = Math.max(javaPlayersOnline, bedrockPlayersOnline);
-
-        // Compute max players
-        const maxPlayers = Math.max(
-          mcStatusJava?.players?.max || 0,
-          mcSrvJava?.players?.max || 0,
-          minetoolsJava?.players?.max || 0,
-          mcStatusBedrock?.players?.max || 0,
-          20
-        );
-
-        // Collect and deduplicate player roster
-        const playerMap = new Map<string, PlayerInfo>();
-
-        // 1. Check mcstatus.io players list
-        if (mcStatusJava?.players?.list && Array.isArray(mcStatusJava.players.list)) {
-          mcStatusJava.players.list.forEach((p, idx) => {
-            const name = p.name_clean || p.name_raw;
-            if (name && name.trim()) {
-              playerMap.set(name.toLowerCase(), {
-                name: name.trim(),
-                uuid: p.uuid,
-                ping: Math.floor(Math.random() * 25) + 20,
-                rank: idx === 0 ? "Player" : "Member"
-              });
-            }
-          });
-        }
-
-        // 2. Check mcsrvstat.us players list
-        if (mcSrvJava?.players?.list && Array.isArray(mcSrvJava.players.list)) {
-          mcSrvJava.players.list.forEach((p, idx) => {
-            if (p.name && p.name.trim() && !playerMap.has(p.name.toLowerCase())) {
-              playerMap.set(p.name.toLowerCase(), {
-                name: p.name.trim(),
-                uuid: p.uuid,
-                ping: Math.floor(Math.random() * 25) + 20,
-                rank: idx === 0 ? "Player" : "Member"
-              });
-            }
-          });
-        }
-
-        // 3. Check minetools sample list
-        if (minetoolsJava?.players?.sample && Array.isArray(minetoolsJava.players.sample)) {
-          minetoolsJava.players.sample.forEach((p, idx) => {
-            if (p.name && p.name.trim() && !playerMap.has(p.name.toLowerCase())) {
-              playerMap.set(p.name.toLowerCase(), {
-                name: p.name.trim(),
-                uuid: p.id,
-                ping: Math.floor(Math.random() * 25) + 20,
-                rank: idx === 0 ? "Player" : "Member"
-              });
-            }
-          });
-        }
-
-        // If player count > 0 but server didn't supply full player sample list in SLP:
-        // Synthesize named/active player entries so the roster matches playersOnline
-        const collectedPlayers = Array.from(playerMap.values());
-        if (collectedPlayers.length < playersOnline) {
-          const diff = playersOnline - collectedPlayers.length;
-          for (let i = 0; i < diff; i++) {
-            const indexNumber = collectedPlayers.length + 1;
-            collectedPlayers.push({
-              name: `Online Player #${indexNumber}`,
-              uuid: `active-player-${indexNumber}`,
-              ping: Math.floor(Math.random() * 30) + 24,
-              rank: "Member"
+            playersList.push({
+              name: cleanName,
+              uuid: uuid,
             });
           }
-        }
-
-        // MOTD resolution
-        let cleanMotd = "🌟 Welcome to our Minecraft Server!";
-        if (mcStatusJava?.motd?.clean) {
-          cleanMotd = mcStatusJava.motd.clean.trim();
-        } else if (mcSrvJava?.motd?.clean && mcSrvJava.motd.clean.length > 0) {
-          cleanMotd = mcSrvJava.motd.clean.join(' ').trim();
-        } else if (minetoolsJava?.description) {
-          cleanMotd = minetoolsJava.description.replace(/§[0-9a-fk-or]/gi, '').trim();
-        } else if (mcStatusBedrock?.motd?.clean) {
-          cleanMotd = mcStatusBedrock.motd.clean.trim();
-        }
-
-        // Version resolution
-        const resolvedVersion = mcStatusJava?.version?.name_clean ||
-          mcSrvJava?.version ||
-          minetoolsJava?.version?.name ||
-          mcStatusBedrock?.version?.name ||
-          config.mcVersion;
-
-        // Latency
-        const latency = mcStatusJava?.round_trip_latency ||
-          (minetoolsJava?.latency ? Math.round(minetoolsJava.latency) : null) ||
-          Math.floor(Math.random() * 20) + 32;
-
-        return {
-          isOnline: true,
-          motdClean: cleanMotd || "Welcome to our Minecraft Server!",
-          motdRaw: mcStatusJava?.motd?.raw || (mcSrvJava?.motd?.raw ? mcSrvJava.motd.raw.join(' ') : undefined),
-          playersOnline: playersOnline,
-          maxPlayers: maxPlayers,
-          playersList: collectedPlayers,
-          version: resolvedVersion,
-          pingMs: latency,
-          cpuPercent: Math.floor(Math.random() * 15) + 35,
-          ramUsageMb: 3040,
-          ramMaxMb: 6450,
-          lastChecked: now,
-          software: mcSrvJava?.software || "Paper / Purpur (GeyserMC)"
-        };
+        });
       }
-    } catch (e) {
-      console.warn("Real-time Minecraft API query failed, trying My-MC endpoint...", e);
-    }
 
-    // Attempt My-MC.link panel API endpoint if configured
-    if (config.myMcApiUrl) {
+      return {
+        isOnline,
+        motdClean,
+        playersOnline,
+        maxPlayers,
+        playersList,
+        version,
+        lastChecked: now,
+      };
+    } catch (err) {
+      console.warn('Primary mcsrvstat.us/3 check failed, trying fallback to /2:', err);
       try {
-        const headers: Record<string, string> = {};
-        if (config.myMcApiKey) {
-          headers['x-my-mc-auth'] = config.myMcApiKey;
-        }
-
-        const myMcUrl = `${config.myMcApiUrl}/status/${config.serverId}`;
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
-
-        const res = await fetch(myMcUrl, { headers, signal: controller.signal });
-        clearTimeout(timeoutId);
-
-        if (res.ok) {
-          const data = await res.json();
+        // Fallback to mcsrvstat.us/2
+        const fallbackRes = await fetch(`https://api.mcsrvstat.us/2/${encodeURIComponent(address)}?t=${Date.now()}`);
+        if (fallbackRes.ok) {
+          const fbData = await fallbackRes.json();
           return {
-            isOnline: Boolean(data.online ?? true),
-            motdClean: data.motd || `${config.serverName} | Powered by My-MC.Link`,
-            playersOnline: data.players || 0,
-            maxPlayers: data.max_players || 20,
-            playersList: data.player_list || SAMPLE_ONLINE_PLAYERS.slice(0, data.players || 1),
-            version: config.mcVersion,
-            cpuPercent: data.cpu || 40,
-            ramUsageMb: data.ram || 3040,
-            ramMaxMb: 6450,
-            lastChecked: now
+            isOnline: Boolean(fbData.online),
+            motdClean: fbData.motd?.clean?.join(' ').trim() || 'A Minecraft Server',
+            playersOnline: fbData.players?.online ?? 0,
+            maxPlayers: fbData.players?.max ?? 20,
+            playersList: (fbData.players?.list || []).map((p: any) => ({
+              name: typeof p === 'string' ? p : p.name,
+              uuid: typeof p === 'object' ? p.uuid : p,
+            })),
+            version: fbData.version || config.mcVersion,
+            lastChecked: now,
           };
         }
-      } catch {
-        // ignore
+      } catch (fbErr) {
+        console.error('All live status checks failed:', fbErr);
       }
-    }
 
-    // Default offline/sleeping response
-    return {
-      isOnline: false,
-      motdClean: "Server is currently sleeping to save resources. Wake it up in Discord!",
-      playersOnline: 0,
-      maxPlayers: 20,
-      playersList: [],
-      version: config.mcVersion,
-      lastChecked: now
-    };
-  }
-
-  private static getSimulatedResponse(config: ServerConfig, now: string): ServerStats {
-    if (this.simulatedState === 'offline') {
+      // If network unreachable, return offline state
       return {
         isOnline: false,
-        motdClean: "Server is currently sleeping to conserve host resources.",
+        motdClean: 'Server unreachable or offline',
         playersOnline: 0,
         maxPlayers: 20,
         playersList: [],
         version: config.mcVersion,
         lastChecked: now,
-        rawStatus: "Offline / Sleeping"
       };
     }
-
-    if (this.simulatedState === 'starting') {
-      return {
-        isOnline: false,
-        isStarting: true,
-        motdClean: "Server boot in progress... loading chunks & plugins...",
-        playersOnline: 0,
-        maxPlayers: 20,
-        playersList: [],
-        version: config.mcVersion,
-        lastChecked: now,
-        rawStatus: "Booting Up"
-      };
-    }
-
-    // Online state
-    return {
-      isOnline: true,
-      motdClean: `🌟 ${config.serverName} 🌟 [Crossplay 1.21.x] Survival • Economy • Quests`,
-      playersOnline: 1,
-      maxPlayers: 20,
-      playersList: [
-        {
-          name: "ARTEX",
-          uuid: "1c57fdd7-6174-358c-8c61-9e0a979297eb",
-          ping: 36,
-          rank: "Member",
-          playtimeHours: 12
-        }
-      ],
-      version: config.mcVersion,
-      pingMs: 36,
-      cpuPercent: 40,
-      ramUsageMb: 3040,
-      ramMaxMb: 6450,
-      lastChecked: now,
-      software: "Paper / Purpur (GeyserMC)",
-      rawStatus: "Online"
-    };
   }
 }
-
