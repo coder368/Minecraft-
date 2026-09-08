@@ -1,15 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ServerConfig, ServerStats } from '../types';
 import { 
   Gamepad2, 
+  Users, 
+  ShieldCheck, 
+  MessageSquare, 
   Copy, 
   Check, 
-  MessageSquare, 
-  Settings, 
-  Activity, 
-  ShieldCheck, 
-  Terminal
+  Settings,
+  Menu,
+  X,
+  Home
 } from 'lucide-react';
+import { sounds } from '../utils/audio';
 
 interface NavbarProps {
   config: ServerConfig;
@@ -28,155 +31,222 @@ export const Navbar: React.FC<NavbarProps> = ({
   onCopyIp,
   copiedLabel,
   activeSection,
-  setActiveSection
+  setActiveSection,
 }) => {
-  const navItems = [
-    { id: 'connect', label: 'Join Server', icon: Gamepad2 },
-    { id: 'players', label: 'Online Players', icon: Activity, badge: stats.isOnline ? `${stats.playersOnline}` : undefined },
-    { id: 'bot', label: 'Discord Bot', icon: Terminal },
-    { id: 'rules', label: 'Rules & FAQ', icon: ShieldCheck },
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Strictly: Home, Players, Rules, Discord
+  const navLinks = [
+    { id: 'home', label: 'Home', icon: Home },
+    { id: 'players', label: 'Players', icon: Users, badge: stats.isOnline ? `${stats.playersOnline}` : undefined },
+    { id: 'rules', label: 'Rules', icon: ShieldCheck },
   ];
 
-  return (
-    <header className="sticky top-0 z-40 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 sm:h-20">
-          {/* Logo & Title */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 p-0.5 shadow-lg shadow-emerald-950/50 flex items-center justify-center">
-              <div className="w-full h-full bg-zinc-950 rounded-[10px] flex items-center justify-center">
-                <Gamepad2 className="w-6 h-6 text-emerald-400" />
-              </div>
-            </div>
+  const handleNavClick = (sectionId: string) => {
+    sounds.playClick();
+    setActiveSection(sectionId);
+    setMobileMenuOpen(false);
 
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="font-bold text-lg sm:text-xl text-zinc-100 tracking-tight font-mono">
-                  {config.serverName}
-                </h1>
-                {/* Real-time Status Badge */}
-                <div 
-                  id="navbar-status-badge"
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
-                    stats.isStarting
-                      ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                      : stats.isOnline
-                      ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
-                      : 'bg-rose-500/10 text-rose-300 border-rose-500/30'
-                  }`}
-                >
-                  <span className={`w-2 h-2 rounded-full ${
-                    stats.isStarting
-                      ? 'bg-amber-400 animate-ping'
-                      : stats.isOnline
-                      ? 'bg-emerald-400 animate-pulse'
-                      : 'bg-rose-400'
-                  }`} />
-                  <span className="capitalize">
-                    {stats.isStarting ? 'Booting...' : stats.isOnline ? `${stats.playersOnline} Online` : 'Sleeping'}
+    if (sectionId === 'home') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    const el = document.getElementById(sectionId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const isCopied = copiedLabel === 'navbar-ip' || copiedLabel === 'hero-java-ip';
+  const fullJavaIp = config.javaPort === 25565 ? config.javaIp : `${config.javaIp}:${config.javaPort}`;
+
+  return (
+    <header className="fixed top-3 sm:top-4 inset-x-0 z-50 flex justify-center px-3 sm:px-4 pointer-events-none">
+      {/* Compact Floating Glassmorphism Pill */}
+      <div className="pointer-events-auto backdrop-blur-md bg-zinc-900/90 border border-zinc-800 rounded-full px-3.5 sm:px-4 py-2 shadow-xl flex items-center justify-between gap-2 sm:gap-4 max-w-4xl w-full">
+        {/* Logo & Live Status Dot */}
+        <button
+          onClick={() => handleNavClick('home')}
+          className="flex items-center gap-2 px-1.5 py-1 rounded-full hover:bg-zinc-800/60 transition-colors cursor-pointer text-left shrink-0"
+        >
+          <div className="w-6 h-6 rounded-full bg-zinc-950 border border-zinc-800 flex items-center justify-center text-emerald-400">
+            <Gamepad2 className="w-3.5 h-3.5" />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="font-mono font-bold text-xs sm:text-sm text-white tracking-tight">
+              {config.serverName}
+            </span>
+            <span 
+              className={`w-2 h-2 rounded-full ${
+                stats.isOnline 
+                  ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' 
+                  : 'bg-rose-500'
+              }`}
+              title={stats.isOnline ? `Server Online (${stats.playersOnline} players)` : 'Server Offline'}
+            />
+          </div>
+        </button>
+
+        {/* Desktop Nav Links: Strictly Home, Players, Rules, Discord */}
+        <nav className="hidden md:flex items-center gap-1 font-mono">
+          {navLinks.map((link) => {
+            const Icon = link.icon;
+            const isActive = activeSection === link.id;
+            return (
+              <button
+                key={link.id}
+                id={`nav-link-${link.id}`}
+                onClick={() => handleNavClick(link.id)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  isActive
+                    ? 'text-emerald-400 bg-zinc-950 border border-zinc-800'
+                    : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{link.label}</span>
+                {link.badge && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-emerald-400/15 text-emerald-400 text-[10px] font-mono font-bold">
+                    {link.badge}
                   </span>
-                </div>
-              </div>
-              <p className="text-xs text-zinc-400 hidden sm:block truncate max-w-xs md:max-w-md">
-                {config.serverTagline}
-              </p>
-            </div>
+                )}
+              </button>
+            );
+          })}
+
+          {/* Discord Nav Link */}
+          <a
+            id="nav-link-discord"
+            href={config.discordInviteUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => sounds.playClick()}
+            className="px-3 py-1 rounded-full text-xs font-medium text-zinc-400 hover:text-[#8ea1ff] hover:bg-zinc-800/50 transition-colors flex items-center gap-1.5 cursor-pointer"
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-[#5865F2]" />
+            <span>Discord</span>
+          </a>
+        </nav>
+
+        {/* Right Actions: Compact Quick Copy + Settings */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <button
+            id="nav-copy-java-ip-btn"
+            onClick={() => {
+              sounds.playPop();
+              onCopyIp(fullJavaIp, 'navbar-ip');
+            }}
+            className="px-3 py-1.5 rounded-full text-xs font-bold font-mono tracking-tight transition-colors cursor-pointer flex items-center gap-1.5 bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-zinc-950 shadow-sm shrink-0"
+          >
+            {isCopied ? (
+              <>
+                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>Copied!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span className="hidden sm:inline">Copy IP</span>
+                <span className="sm:hidden">IP</span>
+              </>
+            )}
+          </button>
+
+          {/* Settings button */}
+          <button
+            onClick={() => {
+              sounds.playClick();
+              onOpenSettings();
+            }}
+            title="Settings"
+            className="p-1.5 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 border border-transparent hover:border-zinc-700 transition-colors cursor-pointer"
+          >
+            <Settings className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden p-1.5 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer"
+            aria-label="Toggle menu"
+          >
+            {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile Drawer Dropdown - Strictly Home, Players, Rules, Discord */}
+      {mobileMenuOpen && (
+        <div className="pointer-events-auto absolute top-14 inset-x-4 max-w-sm mx-auto backdrop-blur-xl bg-zinc-900 border border-zinc-800 rounded-2xl p-4 shadow-2xl space-y-3 z-50 md:hidden font-mono">
+          <div className="flex items-center justify-between pb-2 border-b border-zinc-800 px-1">
+            <span className="text-xs font-semibold text-zinc-400">Navigation</span>
+            <span className="text-[11px] text-emerald-400 font-bold">
+              {stats.isOnline ? `${stats.playersOnline} Online` : 'Offline'}
+            </span>
           </div>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-1 bg-zinc-900/80 p-1.5 rounded-xl border border-zinc-800">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeSection === item.id;
+          <div className="grid grid-cols-2 gap-2">
+            {navLinks.map((link) => {
+              const Icon = link.icon;
+              const isActive = activeSection === link.id;
               return (
                 <button
-                  key={item.id}
-                  id={`nav-btn-${item.id}`}
-                  onClick={() => setActiveSection(item.id)}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                    isActive
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-xs'
-                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
+                  key={`mob-${link.id}`}
+                  onClick={() => handleNavClick(link.id)}
+                  className={`flex items-center gap-2 p-2.5 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                    isActive 
+                      ? 'bg-emerald-400/10 text-emerald-400 border border-emerald-400/30 font-bold' 
+                      : 'bg-zinc-950 text-zinc-300 hover:bg-zinc-800 border border-zinc-800'
                   }`}
                 >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span>{item.label}</span>
-                  {item.badge !== undefined && (
-                    <span className="px-1.5 py-0.2 rounded-full bg-emerald-500/30 text-emerald-200 text-[10px] font-bold">
-                      {item.badge}
-                    </span>
-                  )}
+                  <Icon className="w-4 h-4 text-emerald-400" />
+                  <span>{link.label}</span>
                 </button>
               );
             })}
-          </nav>
 
-          {/* Actions: Quick Copy & Discord */}
-          <div className="flex items-center gap-2">
-            <button
-              id="btn-quick-copy-ip"
-              onClick={() => onCopyIp(config.javaIp, 'quick-java')}
-              className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 border border-zinc-800 text-xs font-mono transition-colors cursor-pointer"
-              title="Copy Java IP"
-            >
-              {copiedLabel === 'quick-java' ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-emerald-400 font-semibold">IP Copied!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3.5 h-3.5 text-zinc-400" />
-                  <span>{config.javaIp}</span>
-                </>
-              )}
-            </button>
-
+            {/* Discord Link */}
             <a
-              id="btn-navbar-discord"
               href={config.discordInviteUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-[#5865F2] hover:bg-[#4752C4] text-white text-xs font-semibold shadow-sm transition-colors"
+              onClick={() => {
+                sounds.playClick();
+                setMobileMenuOpen(false);
+              }}
+              className="flex items-center gap-2 p-2.5 rounded-xl text-xs font-medium bg-zinc-950 text-zinc-300 hover:bg-zinc-800 border border-zinc-800 cursor-pointer"
             >
-              <MessageSquare className="w-4 h-4" />
-              <span className="hidden sm:inline">Discord</span>
+              <MessageSquare className="w-4 h-4 text-[#5865F2]" />
+              <span>Discord</span>
             </a>
+          </div>
 
+          <div className="pt-2 border-t border-zinc-800 flex items-center justify-between gap-2">
             <button
-              id="btn-open-settings"
-              onClick={onOpenSettings}
-              className="p-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 border border-zinc-800 transition-colors cursor-pointer"
-              title="Server & Web Portal Settings"
+              onClick={() => {
+                sounds.playPop();
+                onCopyIp(fullJavaIp, 'navbar-ip');
+                setMobileMenuOpen(false);
+              }}
+              className="flex-1 py-2 px-3 rounded-xl bg-emerald-400 text-zinc-950 text-xs font-bold font-mono text-center flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              <span>Copy Java IP</span>
+            </button>
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                onOpenSettings();
+              }}
+              className="p-2 rounded-xl bg-zinc-950 border border-zinc-800 text-zinc-300 hover:text-white cursor-pointer"
+              title="Settings"
             >
               <Settings className="w-4 h-4" />
             </button>
           </div>
         </div>
-
-        {/* Mobile Navigation Bar */}
-        <div className="flex md:hidden items-center justify-between py-2 border-t border-zinc-800/80 overflow-x-auto gap-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeSection === item.id;
-            return (
-              <button
-                key={`mob-${item.id}`}
-                id={`mob-nav-btn-${item.id}`}
-                onClick={() => setActiveSection(item.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap shrink-0 transition-colors ${
-                  isActive
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                    : 'text-zinc-400 hover:text-zinc-200 bg-zinc-900/40'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      )}
     </header>
   );
 };
