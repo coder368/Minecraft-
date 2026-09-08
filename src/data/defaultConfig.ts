@@ -4,13 +4,13 @@ export const DEFAULT_CONFIG: ServerConfig = {
   serverName: "My-MC SMP",
   serverTagline: "Crossplay Survival Server with automated Discord Bot Integration",
   javaIp: "my-mc.link",
-  javaPort: 38171,
+  javaPort: 40891,
   bedrockIp: "my-mc.link",
-  bedrockPort: 45049,
+  bedrockPort: 34481,
   mcVersion: "1.21.11",
   serverId: "Minecraft",
   discordInviteUrl: "https://discord.gg/AxDVukJdgR",
-  discordChannelName: "〢💻⪼『-ᴄᴏᴍᴍᴀɴᴅ÷ʟɪɴᴇ』",
+  discordChannelName: "#bot-commands",
   discordChannelId: "123456789012345678",
   myMcApiUrl: "https://api.my-mc.link",
   myMcApiKey: "",
@@ -26,13 +26,13 @@ export const BOT_COMMANDS: BotCommandInfo[] = [
     adminOnly: false,
     cooldownSec: 10,
     example: "/status",
-    responsePreview: "🟢 **Server is Online**\n⚡ CPU Usage: `18.4%`\n💾 RAM Usage: `1.85 GB (46.2%)`\n👥 Players: `6 / 20`\n☕ Java IP: `my-mc.link:38171`\n📱 Bedrock IP: `my-mc.link:45049`"
+    responsePreview: "🟢 **Server is Online**\n⚡ CPU Usage: `18.4%`\n💾 RAM Usage: `1.85 GB (46.2%)`\n👥 Players: `6 / 20`\n☕ Java IP: `my-mc.link:40891`\n📱 Bedrock IP: `my-mc.link:34481`"
   },
   {
     name: "/start",
     prefixAlias: "!start",
     description: "Sends power signal to start the server when it is offline or sleeping.",
-    adminOnly: true,
+    adminOnly: false,
     cooldownSec: 10,
     example: "/start",
     responsePreview: "🚀 **Server start command sent!**\nCheck `/status` in a few minutes."
@@ -41,7 +41,7 @@ export const BOT_COMMANDS: BotCommandInfo[] = [
     name: "/stop",
     prefixAlias: "!stop",
     description: "Safely shuts down the server container.",
-    adminOnly: true,
+    adminOnly: false,
     cooldownSec: 10,
     example: "/stop",
     responsePreview: "🛑 **Server stop command sent!**\nShutting down..."
@@ -50,7 +50,7 @@ export const BOT_COMMANDS: BotCommandInfo[] = [
     name: "/restart",
     prefixAlias: "!restart",
     description: "Restarts the server container.",
-    adminOnly: true,
+    adminOnly: false,
     cooldownSec: 15,
     example: "/restart",
     responsePreview: "🔄 **Server restart command sent!**\nBooting up..."
@@ -59,19 +59,19 @@ export const BOT_COMMANDS: BotCommandInfo[] = [
     name: "/my-mc-link",
     prefixAlias: "!my-mc-link",
     description: "Generates or retrieves the server's direct Java connection link.",
-    adminOnly: true,
+    adminOnly: false,
     cooldownSec: 10,
     example: "/my-mc-link",
-    responsePreview: "🌐 **Java Network Link**\nAddress: `my-mc.link:38171`"
+    responsePreview: "🌐 **Java Network Link**\nAddress: `my-mc.link:40891`"
   },
   {
     name: "/my-mc-geyser",
     prefixAlias: "!my-mc-geyser",
     description: "Generates or retrieves the Geyser (Bedrock) connection link and port.",
-    adminOnly: true,
+    adminOnly: false,
     cooldownSec: 10,
     example: "/my-mc-geyser",
-    responsePreview: "🌐 **Bedrock Network Link**\nAddress: `my-mc.link`\nPort: `45049`"
+    responsePreview: "🌐 **Bedrock Network Link**\nAddress: `my-mc.link`\nPort: `34481`"
   },
   {
     name: "/serverhelp",
@@ -126,7 +126,7 @@ export const FAQS: FaqItem[] = [
     id: "faq-2",
     category: "connection",
     question: "Can Bedrock (Mobile / Xbox / PlayStation / Switch) players join?",
-    answer: "Yes! We have GeyserMC & Floodgate installed. Use the Bedrock IP `my-mc.link` with Port `45049`. No Java account is required for Bedrock players."
+    answer: "Yes! We have GeyserMC & Floodgate installed. Use the Bedrock IP `my-mc.link` with Port `34481`. No Java account is required for Bedrock players."
   },
   {
     id: "faq-3",
@@ -150,3 +150,36 @@ export const SAMPLE_ONLINE_PLAYERS = [
   { uuid: "7125ba40-b643-4211-b633-888469d95f87", name: "PixelBuilder", rank: "Member", ping: 61, playtimeHours: 12 },
   { uuid: "4566e69f-c907-48ee-8d71-d7ba5aa00d20", name: "ShadowMod", rank: "Staff", ping: 19, playtimeHours: 320 }
 ];
+
+export const HISTORICAL_UPTIME_DATA = [
+  { time: "04:00", uptime: 100.0, latency: 22, incidents: 0, status: 'nominal' as const },
+  { time: "06:00", uptime: 100.0, latency: 21, incidents: 0, status: 'nominal' as const },
+  { time: "08:00", uptime: 99.95, latency: 24, incidents: 0, status: 'nominal' as const },
+  { time: "10:00", uptime: 100.0, latency: 23, incidents: 0, status: 'nominal' as const },
+  { time: "12:00", uptime: 99.98, latency: 25, incidents: 0, status: 'nominal' as const },
+  { time: "14:00", uptime: 100.0, latency: 24, incidents: 0, status: 'nominal' as const },
+  { time: "16:00", uptime: 100.0, latency: 26, incidents: 0, status: 'nominal' as const },
+  { time: "18:00", uptime: 99.90, latency: 28, incidents: 0, status: 'nominal' as const },
+  { time: "20:00", uptime: 99.95, latency: 29, incidents: 0, status: 'nominal' as const },
+  { time: "22:00", uptime: 100.0, latency: 25, incidents: 0, status: 'nominal' as const },
+  { time: "00:00", uptime: 100.0, latency: 22, incidents: 0, status: 'nominal' as const },
+  { time: "02:00", uptime: 100.0, latency: 20, incidents: 0, status: 'nominal' as const },
+  { time: "Now", uptime: 99.98, latency: 23, incidents: 0, status: 'nominal' as const },
+];
+
+export const HISTORICAL_PLAYER_DATA = [
+  { time: "04:00", players: 14, javaPlayers: 9, bedrockPlayers: 5 },
+  { time: "06:00", players: 18, javaPlayers: 12, bedrockPlayers: 6 },
+  { time: "08:00", players: 29, javaPlayers: 18, bedrockPlayers: 11 },
+  { time: "10:00", players: 42, javaPlayers: 27, bedrockPlayers: 15 },
+  { time: "12:00", players: 58, javaPlayers: 36, bedrockPlayers: 22 },
+  { time: "14:00", players: 64, javaPlayers: 40, bedrockPlayers: 24 },
+  { time: "16:00", players: 71, javaPlayers: 45, bedrockPlayers: 26 },
+  { time: "18:00", players: 79, javaPlayers: 51, bedrockPlayers: 28 },
+  { time: "20:00", players: 85, javaPlayers: 54, bedrockPlayers: 31, isPeak: true },
+  { time: "22:00", players: 68, javaPlayers: 43, bedrockPlayers: 25 },
+  { time: "00:00", players: 49, javaPlayers: 32, bedrockPlayers: 17 },
+  { time: "02:00", players: 28, javaPlayers: 19, bedrockPlayers: 9 },
+  { time: "Now", players: 54, javaPlayers: 35, bedrockPlayers: 19 },
+];
+
