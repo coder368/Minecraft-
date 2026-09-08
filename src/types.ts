@@ -77,3 +77,20 @@ export interface FaqItem {
   answer: string;
   category: 'connection' | 'discord' | 'gameplay' | 'server';
 }
+
+export interface UptimeDataPoint {
+  time: string;
+  uptime: number; // percentage, e.g. 99.98
+  latency: number; // ms
+  incidents: number;
+  status: 'nominal' | 'degraded' | 'maintenance';
+}
+
+export interface PlayerHistoricalPoint {
+  time: string;
+  players: number;
+  javaPlayers: number;
+  bedrockPlayers: number;
+  isPeak?: boolean;
+}
+
